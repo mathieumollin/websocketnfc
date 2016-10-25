@@ -1,0 +1,91 @@
+<!DOCTYPE HTML>
+<html>
+   <head>
+		<title>AOS Mock-up for Badge reader</title>
+   </head>
+   <body>
+		<div id="sse">
+			<p><a href="javascript:connect()">Scan badge</a></p>
+			<p><a href="javascript:disconnect()">Cancel</a></p>
+		</div>
+		<div id="log">Log for badge reader...</div>
+		
+		<script>
+			var action = null;
+			var uid = null;
+			var ws = null;
+			var wsEnd = function(){
+				if ( action == 'cancelled') {
+					document.body.style.backgroundColor = '#fcc';
+					document.getElementById("log").innerText = "Action cancelled";
+				} else {
+					document.body.style.backgroundColor = '#fff';
+				}
+				console.log('End!');
+			}
+			var wsWait = null;
+
+			function connect(){
+					ws = new WebSocket("ws://0.0.0.0:8505/");
+					if (ws != null){ console.log('Websocket status: ' + ws.readyState); }
+					
+					ws.onopen = function() {
+						if (wsWait != null){ window.clearTimeout(wsWait); }
+						document.body.style.backgroundColor = '#cfc';
+						document.getElementById("log").innerText = "Wait...";
+						console.log('Websocket connected');
+					};
+				
+					ws.onmessage = function(event) {
+						uid = event.data;
+						document.getElementById("log").innerText += String.fromCharCode(13) + uid;
+						console.log('Websocket message received: ' + uid);
+					};
+				
+					ws.onclose = function(event) {
+						console.log('Websocket code: ' + event.code);
+						if (event.code == 3001) {
+							wsEnd();
+							ws = null;
+						} else {
+							if (uid == null){
+								if (action == null){
+									if (wsWait != null){ window.clearTimeout(wsWait); }
+									ws = null;
+									wsWait = window.setTimeout(function(){connect()},5000);
+									console.log('Websocket connection error: ' + Date.now());
+								} else {
+									console.log('Websocket closed by the user: ' + Date.now());
+									wsEnd();
+									ws = null;
+								}
+							} else {
+								console.log('Websocket closed after sending message: ' + Date.now());
+								wsEnd();
+								ws = null;
+							}
+						}
+					};
+				
+					ws.onerror = function(event) {
+						if (ws != null){
+							if (ws.readyState == 1) {
+								console.log('Websocket normal error: ' + event.type);
+							}
+						}
+					};
+			}
+
+			function disconnect(){
+				action = 'cancelled';
+				if (wsWait != null){ window.clearTimeout(wsWait); }
+				if (ws != null){
+					ws.close(3001);
+				} else {
+					wsEnd();
+				}
+			}
+		</script>
+
+   </body>
+</html>
